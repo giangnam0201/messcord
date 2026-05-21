@@ -76,7 +76,7 @@ export default function GifPicker({
           type="text"
           value={query}
           onChange={(e) => setQuery(e.target.value)}
-          placeholder="Search Tenor"
+          placeholder="Search GIFs"
           className="flex-1 bg-transparent text-sm text-zinc-100 placeholder:text-zinc-500 focus:outline-none"
           autoFocus
         />
@@ -94,7 +94,7 @@ export default function GifPicker({
           </div>
         ) : gifs.length === 0 ? (
           <p className="py-8 text-center text-sm text-zinc-500">
-            {query ? 'No GIFs found' : 'GIF API not configured. Set NEXT_PUBLIC_TENOR_API_KEY.'}
+            {query ? 'No GIFs found' : 'No GIFs available'}
           </p>
         ) : (
           <div className="grid grid-cols-2 gap-1">
@@ -118,7 +118,7 @@ export default function GifPicker({
       </div>
 
       <div className="border-t border-zinc-700 px-3 py-1.5">
-        <p className="text-[10px] text-zinc-500 text-center">Powered by Tenor</p>
+        <p className="text-[10px] text-zinc-500 text-center">Powered by GIPHY</p>
       </div>
     </div>
   );
