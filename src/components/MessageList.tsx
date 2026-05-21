@@ -1,5 +1,6 @@
 'use client';
 
+import { useState } from 'react';
 import { format } from 'date-fns';
 import { useMessageContextMenu } from '@/hooks/useMessageContextMenu';
 import { MessageReactions } from '@/components/MessageReactions';
@@ -215,9 +216,6 @@ function SpoilerText({ text }: { text: string }) {
     </span>
   );
 }
-
-// Need to import useState for SpoilerText
-import { useState } from 'react';
 
 // ============ Message Content ============
 

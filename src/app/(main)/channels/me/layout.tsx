@@ -59,7 +59,9 @@ export default async function DMLayout({
 
   return (
     <>
-      <DMSidebar conversations={dmList} user={me} />
+      <div className="hidden md:flex">
+        <DMSidebar conversations={dmList} user={me} />
+      </div>
       <div className="flex h-full min-w-0 flex-1 flex-row">{children}</div>
     </>
   );
