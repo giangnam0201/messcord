@@ -1,6 +1,7 @@
 import { redirect } from 'next/navigation';
 
 import { DMSidebar, type DMConversation } from '@/components/DMSidebar';
+import { DMLayoutClient } from '@/components/DMLayoutClient';
 import { auth } from '@/lib/auth';
 import { db } from '@/lib/db';
 
@@ -58,9 +59,8 @@ export default async function DMLayout({
   });
 
   return (
-    <>
-      <DMSidebar conversations={dmList} user={me} />
-      <div className="flex h-full min-w-0 flex-1 flex-row">{children}</div>
-    </>
+    <DMLayoutClient sidebar={<DMSidebar conversations={dmList} user={me} />}>
+      {children}
+    </DMLayoutClient>
   );
 }
