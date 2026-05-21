@@ -103,7 +103,7 @@ Or connect your GitHub repository to Vercel for automatic deployments.
 | `NEXT_PUBLIC_LIVEKIT_URL` | For voice | LiveKit WebSocket URL |
 | `NEXT_PUBLIC_TENOR_API_KEY` | For GIFs | Tenor/Google API key |
 
-*`NEXTAUTH_URL` is automatically set by Vercel in production.
+*`NEXTAUTH_URL` is automatically set by Vercel in production
 
 ## License
 
