@@ -2,6 +2,7 @@
 
 import { format } from 'date-fns';
 import { useMessageContextMenu } from '@/hooks/useMessageContextMenu';
+import { MessageReactions } from '@/components/MessageReactions';
 
 export type ChatMessage = {
   id: string;
@@ -261,10 +262,12 @@ function ReplyPreview({ reply }: { reply: { content: string; author: { username:
 
 export function MessageList({
   messages,
-  currentUserId
+  currentUserId,
+  pusherChannelName
 }: {
   messages: ChatMessage[];
   currentUserId?: string;
+  pusherChannelName?: string;
 }) {
   const { showMessageMenu } = useMessageContextMenu({
     currentUserId: currentUserId || '',
@@ -315,6 +318,13 @@ export function MessageList({
               </span>
               <div className="min-w-0 flex-1">
                 <MessageContent content={msg.content} />
+                {pusherChannelName && currentUserId && (
+                  <MessageReactions
+                    messageId={msg.id}
+                    channelName={pusherChannelName}
+                    currentUserId={currentUserId}
+                  />
+                )}
               </div>
             </li>
           );
@@ -349,6 +359,13 @@ export function MessageList({
                 </span>
               </div>
               <MessageContent content={msg.content} />
+              {pusherChannelName && currentUserId && (
+                <MessageReactions
+                  messageId={msg.id}
+                  channelName={pusherChannelName}
+                  currentUserId={currentUserId}
+                />
+              )}
             </div>
           </li>
         );

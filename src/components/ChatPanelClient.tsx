@@ -60,7 +60,7 @@ export function ChatPanelClient(props: ChatPanelClientProps) {
     return (
       <section className="flex h-full min-w-0 flex-1 flex-col bg-discord-dark">
         <ChatHeader kind="channel" name={props.channelName} />
-        <MessageList messages={messages} currentUserId={props.currentUser.id} />
+        <MessageList messages={messages} currentUserId={props.currentUser.id} pusherChannelName={pusherChannelName} />
         <TypingIndicator channelName={pusherChannelName} currentUserId={props.currentUser.id} />
         <MessageInput
           onSend={handleSend}
@@ -74,7 +74,7 @@ export function ChatPanelClient(props: ChatPanelClientProps) {
   return (
     <section className="flex h-full min-w-0 flex-1 flex-col bg-discord-dark">
       <ChatHeader kind="dm" name={props.otherName} />
-      <MessageList messages={messages} currentUserId={props.currentUser.id} />
+      <MessageList messages={messages} currentUserId={props.currentUser.id} pusherChannelName={pusherChannelName} />
       <TypingIndicator channelName={pusherChannelName} currentUserId={props.currentUser.id} />
       <MessageInput
         onSend={handleSend}

@@ -53,13 +53,16 @@ export default async function ServerLayout({
 
   return (
     <>
-      <ChannelSidebar
-        serverId={server.id}
-        serverName={server.name}
-        channels={channels}
-        isOwner={isOwner}
-        user={me}
-      />
+      {/* Channel sidebar - hidden on mobile, visible on md+ */}
+      <div className="hidden md:flex">
+        <ChannelSidebar
+          serverId={server.id}
+          serverName={server.name}
+          channels={channels}
+          isOwner={isOwner}
+          user={me}
+        />
+      </div>
       <div className="flex h-full min-w-0 flex-1 flex-row">{children}</div>
     </>
   );

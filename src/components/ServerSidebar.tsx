@@ -57,7 +57,7 @@ export function ServerSidebar({
   const [showCreate, setShowCreate] = useState(false);
 
   return (
-    <aside className="flex h-full w-[72px] flex-col items-center gap-2 bg-discord-darkest py-3">
+    <aside className="flex h-full w-[72px] flex-col items-center gap-2 bg-discord-darkest py-3 shrink-0">
       <div className="group relative">
         <ServerPill active={homeActive} />
         <Link

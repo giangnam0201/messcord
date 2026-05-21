@@ -1,6 +1,7 @@
 import { redirect } from 'next/navigation';
 
 import { ServerSidebar } from '@/components/ServerSidebar';
+import { MobileNav } from '@/components/MobileNav';
 import { auth } from '@/lib/auth';
 import { db } from '@/lib/db';
 
@@ -22,7 +23,16 @@ export default async function MainLayout({
 
   return (
     <div className="flex h-full w-full overflow-hidden">
-      <ServerSidebar servers={servers} />
+      {/* Desktop sidebar - always visible */}
+      <div className="hidden md:flex">
+        <ServerSidebar servers={servers} />
+      </div>
+
+      {/* Mobile navigation - swipe/hamburger menu */}
+      <MobileNav>
+        <ServerSidebar servers={servers} />
+      </MobileNav>
+
       <div className="flex h-full min-w-0 flex-1 flex-row">{children}</div>
     </div>
   );

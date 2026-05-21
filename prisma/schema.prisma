@@ -51,6 +51,7 @@ model Server {
   members  ServerMember[]
   roles    Role[]
   emojis   CustomEmoji[]
+  invites  Invite[]
 
   @@index([ownerId])
 }
@@ -200,4 +201,21 @@ model Friendship {
 
   @@unique([requesterId, addresseeId])
   @@index([addresseeId])
+}
+
+
+model Invite {
+  id        String   @id @default(cuid())
+  code      String   @unique
+  serverId  String
+  creatorId String
+  maxUses   Int?
+  uses      Int      @default(0)
+  expiresAt DateTime?
+  createdAt DateTime @default(now())
+
+  server  Server @relation(fields: [serverId], references: [id], onDelete: Cascade)
+
+  @@index([serverId])
+  @@index([code])
 }

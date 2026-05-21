@@ -1,8 +1,9 @@
 'use client';
 
 import { useRef, useState, useCallback } from 'react';
-import { Smile, Paperclip, Gift, Plus, Send } from 'lucide-react';
+import { Smile, Gift, Send } from 'lucide-react';
 import dynamic from 'next/dynamic';
+import { FileUploadButton, type UploadedFile } from '@/components/FileUploadButton';
 
 const EmojiPicker = dynamic(() => import('@/components/EmojiPicker'), {
   ssr: false,
@@ -28,18 +29,32 @@ export function MessageInput({
   const [submitting, setSubmitting] = useState(false);
   const [showEmoji, setShowEmoji] = useState(false);
   const [showGif, setShowGif] = useState(false);
+  const [attachments, setAttachments] = useState<UploadedFile[]>([]);
 
   const send = useCallback(() => {
     const trimmed = content.trim();
-    if (!trimmed || submitting) return;
+    if ((!trimmed && attachments.length === 0) || submitting) return;
     setSubmitting(true);
     try {
-      onSend(trimmed);
+      // If we have attachments, include their URLs in the message
+      if (attachments.length > 0) {
+        const attachmentText = attachments
+          .filter(f => f.url.startsWith('data:image'))
+          .map(f => f.url)
+          .join('\n');
+        const fullContent = trimmed
+          ? `${trimmed}\n${attachmentText}`
+          : attachmentText;
+        onSend(fullContent || trimmed);
+      } else {
+        onSend(trimmed);
+      }
       setContent('');
+      setAttachments([]);
     } finally {
       setSubmitting(false);
     }
-  }, [content, submitting, onSend]);
+  }, [content, submitting, onSend, attachments]);
 
   function onKeyDown(e: React.KeyboardEvent<HTMLTextAreaElement>) {
     if (e.key === 'Enter' && !e.shiftKey) {
@@ -73,14 +88,10 @@ export function MessageInput({
       )}
 
       <div className="flex items-center gap-2 rounded-lg bg-zinc-700/60 px-4 py-2">
-        <button
-          type="button"
-          onClick={() => { setShowGif(false); setShowEmoji(false); }}
-          className="flex h-6 w-6 items-center justify-center rounded-full bg-zinc-600 text-zinc-300 hover:bg-zinc-500 hover:text-zinc-100 transition-colors"
-          aria-label="Attach file"
-        >
-          <Plus className="h-4 w-4" />
-        </button>
+        <FileUploadButton
+          onFilesUploaded={(files) => setAttachments(files)}
+          disabled={submitting}
+        />
 
         <textarea
           ref={textareaRef}

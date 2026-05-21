@@ -3,9 +3,10 @@
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import { useState } from 'react';
-import { Hash, Plus, Volume2 } from 'lucide-react';
+import { Hash, Plus, Volume2, UserPlus, Settings } from 'lucide-react';
 
 import { CreateChannelModal } from '@/components/CreateChannelModal';
+import { InviteModal } from '@/components/InviteModal';
 import { UserPanel } from '@/components/UserPanel';
 import { useChannelContextMenu } from '@/hooks/useChannelContextMenu';
 import { cn } from '@/lib/utils';
@@ -37,6 +38,7 @@ export function ChannelSidebar({
   const match = pathname.match(/^\/channels\/[^/]+\/([^/]+)/);
   const activeChannelId = match ? match[1]! : null;
   const [createType, setCreateType] = useState<'TEXT' | 'VOICE' | null>(null);
+  const [showInvite, setShowInvite] = useState(false);
 
   const { showChannelMenu } = useChannelContextMenu({
     isOwner,
@@ -97,9 +99,28 @@ export function ChannelSidebar({
   return (
     <aside className="flex h-full w-60 flex-col bg-discord-darker">
       <div className="flex h-12 items-center border-b border-discord-darkest px-4 shadow-sm">
-        <h2 className="truncate text-sm font-semibold text-zinc-50">
+        <h2 className="flex-1 truncate text-sm font-semibold text-zinc-50">
           {serverName}
         </h2>
+        <div className="flex items-center gap-1">
+          <button
+            type="button"
+            onClick={() => setShowInvite(true)}
+            className="flex h-7 w-7 items-center justify-center rounded text-zinc-400 hover:text-zinc-100"
+            title="Invite People"
+          >
+            <UserPlus className="h-4 w-4" />
+          </button>
+          {isOwner && (
+            <a
+              href={`/channels/${serverId}/settings`}
+              className="flex h-7 w-7 items-center justify-center rounded text-zinc-400 hover:text-zinc-100"
+              title="Server Settings"
+            >
+              <Settings className="h-4 w-4" />
+            </a>
+          )}
+        </div>
       </div>
 
       <div className="flex-1 overflow-y-auto px-2 py-2">
@@ -137,6 +158,14 @@ export function ChannelSidebar({
           serverId={serverId}
           defaultType={createType}
           onClose={() => setCreateType(null)}
+        />
+      ) : null}
+
+      {showInvite ? (
+        <InviteModal
+          serverId={serverId}
+          serverName={serverName}
+          onClose={() => setShowInvite(false)}
         />
       ) : null}
     </aside>
