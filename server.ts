@@ -2,6 +2,7 @@ import http from 'node:http';
 import next from 'next';
 import { Server as SocketIOServer } from 'socket.io';
 
+import { setIO } from './src/lib/io';
 import { registerSocketHandlers } from './src/lib/socket-server';
 
 const port = Number(process.env.PORT ?? 3000);
@@ -31,6 +32,7 @@ async function main() {
     cors: { origin: '*' }
   });
 
+  setIO(io);
   registerSocketHandlers(io);
 
   httpServer.listen(port, hostname, () => {

@@ -3,6 +3,7 @@ import { z } from 'zod';
 
 import { auth } from '@/lib/auth';
 import { db } from '@/lib/db';
+import { getIO } from '@/lib/io';
 
 const createMessageSchema = z.object({
   content: z.string().trim().min(1).max(4000)
@@ -109,6 +110,14 @@ export async function POST(
       }
     }
   });
+
+  try {
+    getIO()
+      ?.to(`conversation:${result.conversationId}`)
+      .emit('message:new', message);
+  } catch {
+    // ignore
+  }
 
   return NextResponse.json({ message });
 }

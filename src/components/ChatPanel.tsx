@@ -1,7 +1,7 @@
 import { db } from '@/lib/db';
-import { ChatHeader } from '@/components/ChatHeader';
-import { MessageInput } from '@/components/MessageInput';
-import { MessageList, type ChatMessage } from '@/components/MessageList';
+import { auth } from '@/lib/auth';
+import { ChatPanelClient } from '@/components/ChatPanelClient';
+import type { ChatMessage } from '@/components/MessageList';
 
 type ChatPanelProps =
   | {
@@ -16,6 +16,20 @@ type ChatPanelProps =
     };
 
 export async function ChatPanel(props: ChatPanelProps) {
+  const session = await auth();
+  if (!session?.user?.id) return null;
+
+  const user = await db.user.findUnique({
+    where: { id: session.user.id },
+    select: {
+      id: true,
+      username: true,
+      displayName: true,
+      avatarUrl: true
+    }
+  });
+  if (!user) return null;
+
   let messagesRaw;
   if (props.kind === 'channel') {
     messagesRaw = await db.message.findMany({
@@ -51,7 +65,7 @@ export async function ChatPanel(props: ChatPanelProps) {
     });
   }
 
-  const messages: ChatMessage[] = messagesRaw.reverse().map((m) => ({
+  const initial: ChatMessage[] = messagesRaw.reverse().map((m) => ({
     id: m.id,
     content: m.content,
     createdAt: m.createdAt,
@@ -60,25 +74,23 @@ export async function ChatPanel(props: ChatPanelProps) {
 
   if (props.kind === 'channel') {
     return (
-      <section className="flex h-full min-w-0 flex-1 flex-col bg-discord-dark">
-        <ChatHeader kind="channel" name={props.channelName} />
-        <MessageList messages={messages} />
-        <MessageInput
-          target={{ type: 'channel', id: props.channelId }}
-          placeholder={`Message #${props.channelName}`}
-        />
-      </section>
+      <ChatPanelClient
+        kind="channel"
+        channelId={props.channelId}
+        channelName={props.channelName}
+        initial={initial}
+        currentUser={user}
+      />
     );
   }
 
   return (
-    <section className="flex h-full min-w-0 flex-1 flex-col bg-discord-dark">
-      <ChatHeader kind="dm" name={props.otherName} />
-      <MessageList messages={messages} />
-      <MessageInput
-        target={{ type: 'conversation', id: props.conversationId }}
-        placeholder={`Message @${props.otherName}`}
-      />
-    </section>
+    <ChatPanelClient
+      kind="dm"
+      conversationId={props.conversationId}
+      otherName={props.otherName}
+      initial={initial}
+      currentUser={user}
+    />
   );
 }

@@ -30,9 +30,23 @@ export default async function ChannelPage({
   if (!membership) notFound();
 
   if (channel.type === 'VOICE') {
+    const user = await db.user.findUnique({
+      where: { id: userId },
+      select: {
+        id: true,
+        username: true,
+        displayName: true,
+        avatarUrl: true
+      }
+    });
+    if (!user) notFound();
     return (
       <>
-        <VoiceRoom channelId={channel.id} channelName={channel.name} />
+        <VoiceRoom
+          channelId={channel.id}
+          channelName={channel.name}
+          currentUser={user}
+        />
         <MembersList serverId={channel.serverId} />
       </>
     );
