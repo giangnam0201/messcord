@@ -30,9 +30,19 @@ export default function RegisterPage() {
 
       if (!res.ok) {
         const data = (await res.json().catch(() => null)) as
-          | { error?: string }
+          | { error?: string; issues?: { fieldErrors?: Record<string, string[]> } }
           | null;
-        setError(data?.error ?? 'Registration failed.');
+        // Show field-specific errors if available
+        if (data?.issues?.fieldErrors) {
+          const fieldErrors = data.issues.fieldErrors;
+          const messages: string[] = [];
+          if (fieldErrors.email?.length) messages.push(`Email: ${fieldErrors.email[0]}`);
+          if (fieldErrors.username?.length) messages.push(`Username: ${fieldErrors.username[0]}`);
+          if (fieldErrors.password?.length) messages.push(`Password: ${fieldErrors.password[0]}`);
+          setError(messages.join('\n') || data?.error || 'Registration failed.');
+        } else {
+          setError(data?.error ?? 'Registration failed.');
+        }
         return;
       }
 
@@ -104,7 +114,7 @@ export default function RegisterPage() {
         </div>
 
         {error ? (
-          <p className="text-sm text-red-400" role="alert">
+          <p className="whitespace-pre-wrap text-sm text-red-400" role="alert">
             {error}
           </p>
         ) : null}
