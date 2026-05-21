@@ -105,10 +105,10 @@ Or connect your GitHub repository to Vercel for automatic deployments.
 
 *`NEXTAUTH_URL` is automatically set by Vercel in production.
 
-## Contributing
-
-Made with ❤️ by giangnam0201 & kiro-agent
-
 ## License
 
 MIT
+
+## Contributing
+
+Made with ❤️ by giangnam0201 & kiro-agent
