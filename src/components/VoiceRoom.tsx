@@ -1,115 +1,34 @@
 'use client';
 
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { useEffect, useState } from 'react';
 import {
-  Mic,
-  MicOff,
-  Headphones,
-  Monitor,
-  PhoneOff,
-  Volume2,
-  VolumeX
-} from 'lucide-react';
-import { useRouter } from 'next/navigation';
+  LiveKitRoom,
+  VideoConference,
+  RoomAudioRenderer,
+  ControlBar,
+  GridLayout,
+  ParticipantTile,
+  useTracks
+} from '@livekit/components-react';
+import '@livekit/components-styles';
+import { Track } from 'livekit-client';
+import { Loader2 } from 'lucide-react';
 
-import { Button } from '@/components/ui/Button';
 import { ChatHeader } from '@/components/ChatHeader';
-import { getSocket } from '@/lib/socket-client';
-import { MeshClient } from '@/lib/webrtc';
 
-type RemotePeer = {
-  socketId: string;
-  userId: string;
-  stream: MediaStream;
-};
-
-function initials(name: string): string {
-  return name
-    .split(/\s+/)
-    .filter(Boolean)
-    .slice(0, 2)
-    .map((s) => s[0]!.toUpperCase())
-    .join('');
-}
-
-function PeerTile({
-  label,
-  stream,
-  muted,
-  deafened,
-  isLocal
-}: {
-  label: string;
-  stream: MediaStream | null;
-  muted?: boolean;
-  deafened?: boolean;
-  isLocal?: boolean;
-}) {
-  const audioRef = useRef<HTMLAudioElement | null>(null);
-  const videoRef = useRef<HTMLVideoElement | null>(null);
-  const [hasVideo, setHasVideo] = useState(false);
-
-  useEffect(() => {
-    if (audioRef.current && stream) {
-      audioRef.current.srcObject = stream;
-    }
-    if (videoRef.current && stream) {
-      videoRef.current.srcObject = stream;
-    }
-    if (!stream) {
-      setHasVideo(false);
-      return;
-    }
-
-    function update() {
-      setHasVideo(stream!.getVideoTracks().some((t) => t.readyState !== 'ended'));
-    }
-    update();
-    stream.addEventListener('addtrack', update);
-    stream.addEventListener('removetrack', update);
-    const tracks = stream.getVideoTracks();
-    for (const t of tracks) {
-      t.addEventListener('ended', update);
-    }
-    return () => {
-      stream.removeEventListener('addtrack', update);
-      stream.removeEventListener('removetrack', update);
-      for (const t of tracks) {
-        t.removeEventListener('ended', update);
-      }
-    };
-  }, [stream]);
+function VideoGrid() {
+  const tracks = useTracks(
+    [
+      { source: Track.Source.Camera, withPlaceholder: true },
+      { source: Track.Source.ScreenShare, withPlaceholder: false }
+    ],
+    { onlySubscribed: false }
+  );
 
   return (
-    <div className="flex flex-col items-center gap-2 rounded-lg bg-discord-darker p-4">
-      <div className="relative flex h-32 w-32 items-center justify-center overflow-hidden rounded-full bg-discord-accent text-2xl font-semibold text-white">
-        {hasVideo ? (
-          <video
-            ref={videoRef}
-            autoPlay
-            playsInline
-            muted={isLocal}
-            className="absolute inset-0 h-full w-full rounded-full object-cover"
-          />
-        ) : (
-          (initials(label) || '?')
-        )}
-      </div>
-      <div className="flex items-center gap-2 text-sm text-zinc-100">
-        <span>{label}</span>
-        {muted ? <MicOff className="h-4 w-4 text-red-400" /> : null}
-        {deafened ? <VolumeX className="h-4 w-4 text-red-400" /> : null}
-      </div>
-      {!isLocal ? (
-        // eslint-disable-next-line jsx-a11y/media-has-caption
-        <audio
-          ref={audioRef}
-          autoPlay
-          muted={Boolean(deafened)}
-          className="hidden"
-        />
-      ) : null}
-    </div>
+    <GridLayout tracks={tracks} style={{ height: 'calc(100% - 60px)' }}>
+      <ParticipantTile />
+    </GridLayout>
   );
 }
 
@@ -127,248 +46,91 @@ export function VoiceRoom({
     avatarUrl: string | null;
   };
 }) {
-  const router = useRouter();
-  const [localStream, setLocalStream] = useState<MediaStream | null>(null);
-  const [remotes, setRemotes] = useState<RemotePeer[]>([]);
-  const [muted, setMuted] = useState(false);
-  const [deafened, setDeafened] = useState(false);
-  const [screenSharing, setScreenSharing] = useState(false);
+  const [token, setToken] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
-  const meshRef = useRef<MeshClient | null>(null);
-  const screenStreamRef = useRef<MediaStream | null>(null);
+  const [loading, setLoading] = useState(true);
 
-  // Lifecycle: getUserMedia, start MeshClient, cleanup on unmount.
   useEffect(() => {
-    let cancelled = false;
-    let mesh: MeshClient | null = null;
-    let stream: MediaStream | null = null;
-
-    async function init() {
+    async function fetchToken() {
       try {
-        if (
-          typeof navigator === 'undefined' ||
-          !navigator.mediaDevices?.getUserMedia
-        ) {
-          throw new Error('getUserMedia is not available in this environment');
+        const res = await fetch(`/api/livekit?channelId=${channelId}`);
+        if (!res.ok) {
+          const data = await res.json().catch(() => null);
+          throw new Error(data?.error || 'Failed to get voice token');
         }
-        stream = await navigator.mediaDevices.getUserMedia({ audio: true });
-        if (cancelled) {
-          stream.getTracks().forEach((t) => t.stop());
-          return;
-        }
-        setLocalStream(stream);
-
-        const socket = getSocket();
-        mesh = new MeshClient(
-          socket,
-          channelId,
-          stream,
-          ({ socketId, userId, stream: remoteStream }) => {
-            setRemotes((prev) => {
-              if (prev.some((p) => p.socketId === socketId)) {
-                return prev.map((p) =>
-                  p.socketId === socketId
-                    ? { socketId, userId, stream: remoteStream }
-                    : p
-                );
-              }
-              return [...prev, { socketId, userId, stream: remoteStream }];
-            });
-          },
-          ({ socketId }) => {
-            setRemotes((prev) => prev.filter((p) => p.socketId !== socketId));
-          }
-        );
-        meshRef.current = mesh;
-        mesh.start();
+        const data = await res.json();
+        setToken(data.token);
       } catch (err) {
-        if (!cancelled) {
-          // eslint-disable-next-line no-console
-          console.error('VoiceRoom init failed', err);
-          setError(
-            err instanceof Error
-              ? err.message
-              : 'Could not access your microphone.'
-          );
-        }
+        setError(err instanceof Error ? err.message : 'Failed to connect to voice');
+      } finally {
+        setLoading(false);
       }
     }
-
-    void init();
-
-    return () => {
-      cancelled = true;
-      if (mesh) mesh.stop();
-      meshRef.current = null;
-      if (stream) stream.getTracks().forEach((t) => t.stop());
-      if (screenStreamRef.current) {
-        screenStreamRef.current.getTracks().forEach((t) => t.stop());
-        screenStreamRef.current = null;
-      }
-    };
+    fetchToken();
   }, [channelId]);
 
-  const toggleMute = useCallback(() => {
-    if (!localStream) return;
-    const next = !muted;
-    setMuted(next);
-    for (const t of localStream.getAudioTracks()) {
-      t.enabled = !next;
-    }
-  }, [localStream, muted]);
+  const livekitUrl = process.env.NEXT_PUBLIC_LIVEKIT_URL;
 
-  const toggleDeafen = useCallback(() => {
-    setDeafened((d) => !d);
-  }, []);
+  if (loading) {
+    return (
+      <section className="flex h-full min-w-0 flex-1 flex-col items-center justify-center bg-discord-dark">
+        <Loader2 className="h-8 w-8 animate-spin text-discord-accent" />
+        <p className="mt-3 text-sm text-zinc-400">Connecting to voice...</p>
+      </section>
+    );
+  }
 
-  const toggleScreenShare = useCallback(async () => {
-    const mesh = meshRef.current;
-    if (!mesh) return;
-    if (screenSharing) {
-      // Turn off: stop the screen stream and clear the outbound video.
-      if (screenStreamRef.current) {
-        screenStreamRef.current.getTracks().forEach((t) => t.stop());
-        screenStreamRef.current = null;
-      }
-      mesh.replaceVideoTrack(null);
-      setScreenSharing(false);
-      return;
-    }
-    try {
-      if (
-        typeof navigator === 'undefined' ||
-        !navigator.mediaDevices?.getDisplayMedia
-      ) {
-        throw new Error('Screen capture is not supported in this browser');
-      }
-      const display = await navigator.mediaDevices.getDisplayMedia({
-        video: true
-      });
-      const track = display.getVideoTracks()[0];
-      if (!track) {
-        display.getTracks().forEach((t) => t.stop());
-        throw new Error('No video track in screen capture');
-      }
-      screenStreamRef.current = display;
-      mesh.replaceVideoTrack(track);
-      setScreenSharing(true);
-      track.addEventListener('ended', () => {
-        if (screenStreamRef.current) {
-          screenStreamRef.current = null;
-        }
-        mesh.replaceVideoTrack(null);
-        setScreenSharing(false);
-      });
-    } catch (err) {
-      // eslint-disable-next-line no-console
-      console.error('Screen share failed', err);
-      setError(
-        err instanceof Error ? err.message : 'Could not start screen share.'
-      );
-    }
-  }, [screenSharing]);
-
-  const disconnect = useCallback(() => {
-    if (meshRef.current) {
-      meshRef.current.stop();
-      meshRef.current = null;
-    }
-    if (localStream) localStream.getTracks().forEach((t) => t.stop());
-    if (screenStreamRef.current) {
-      screenStreamRef.current.getTracks().forEach((t) => t.stop());
-      screenStreamRef.current = null;
-    }
-    router.back();
-  }, [localStream, router]);
-
-  const localLabel =
-    `${currentUser.displayName || currentUser.username} (you)`.trim();
-
-  // Build the local "screen-sharing" preview stream separately so the local
-  // tile shows the screen capture even though the audio element is muted.
-  const localPreviewStream = (() => {
-    if (!localStream) return null;
-    if (screenSharing && screenStreamRef.current) {
-      const combined = new MediaStream();
-      for (const t of screenStreamRef.current.getVideoTracks()) {
-        combined.addTrack(t);
-      }
-      return combined;
-    }
-    return localStream;
-  })();
+  if (error || !token || !livekitUrl) {
+    return (
+      <section className="flex h-full min-w-0 flex-1 flex-col bg-discord-dark">
+        <ChatHeader kind="channel" name={channelName} />
+        <div className="flex flex-1 flex-col items-center justify-center gap-3 px-6">
+          <div className="rounded-lg bg-red-900/30 px-4 py-3 text-center">
+            <p className="text-sm text-red-200">
+              {error || 'Voice chat is not configured. Set LIVEKIT_API_KEY, LIVEKIT_API_SECRET, and NEXT_PUBLIC_LIVEKIT_URL in your environment variables.'}
+            </p>
+          </div>
+          <p className="text-xs text-zinc-500">
+            Get free LiveKit credentials at{' '}
+            <a
+              href="https://livekit.io"
+              target="_blank"
+              rel="noopener noreferrer"
+              className="text-discord-accent hover:underline"
+            >
+              livekit.io
+            </a>
+          </p>
+        </div>
+      </section>
+    );
+  }
 
   return (
     <section className="flex h-full min-w-0 flex-1 flex-col bg-discord-dark">
       <ChatHeader kind="channel" name={channelName} />
-      <div className="flex flex-1 flex-col px-6 py-6">
-        {error ? (
-          <div className="mb-4 rounded-md bg-red-900/40 px-3 py-2 text-sm text-red-200">
-            {error}
-          </div>
-        ) : null}
-
-        {!localStream && !error ? (
-          <div className="flex flex-1 flex-col items-center justify-center gap-3 text-zinc-300">
-            <Volume2 className="h-7 w-7" />
-            <p className="text-sm">Connecting to voice...</p>
-          </div>
-        ) : (
-          <div className="grid flex-1 auto-rows-min grid-cols-2 gap-4 overflow-y-auto md:grid-cols-3 lg:grid-cols-4">
-            <PeerTile
-              label={localLabel}
-              stream={localPreviewStream}
-              muted={muted}
-              deafened={deafened}
-              isLocal
-            />
-            {remotes.map((peer) => (
-              <PeerTile
-                key={peer.socketId}
-                label={peer.userId.slice(0, 6)}
-                stream={peer.stream}
-                deafened={deafened}
-              />
-            ))}
-          </div>
-        )}
-
-        <div className="mt-6 flex flex-wrap items-center justify-center gap-3 border-t border-discord-darkest pt-4">
-          <Button
-            variant={muted ? 'danger' : 'secondary'}
-            onClick={toggleMute}
-            aria-pressed={muted}
-            aria-label={muted ? 'Unmute' : 'Mute'}
-          >
-            {muted ? (
-              <MicOff className="mr-2 h-4 w-4" />
-            ) : (
-              <Mic className="mr-2 h-4 w-4" />
-            )}
-            {muted ? 'Unmute' : 'Mute'}
-          </Button>
-          <Button
-            variant={deafened ? 'danger' : 'secondary'}
-            onClick={toggleDeafen}
-            aria-pressed={deafened}
-            aria-label={deafened ? 'Undeafen' : 'Deafen'}
-          >
-            <Headphones className="mr-2 h-4 w-4" />
-            {deafened ? 'Undeafen' : 'Deafen'}
-          </Button>
-          <Button
-            variant={screenSharing ? 'danger' : 'secondary'}
-            onClick={() => void toggleScreenShare()}
-            aria-pressed={screenSharing}
-          >
-            <Monitor className="mr-2 h-4 w-4" />
-            {screenSharing ? 'Stop Sharing' : 'Screen Share'}
-          </Button>
-          <Button variant="danger" onClick={disconnect}>
-            <PhoneOff className="mr-2 h-4 w-4" />
-            Disconnect
-          </Button>
-        </div>
+      <div className="flex-1 overflow-hidden">
+        <LiveKitRoom
+          token={token}
+          serverUrl={livekitUrl}
+          connect={true}
+          video={false}
+          audio={true}
+          data-lk-theme="default"
+          style={{ height: '100%' }}
+        >
+          <VideoGrid />
+          <RoomAudioRenderer />
+          <ControlBar
+            variation="minimal"
+            controls={{
+              microphone: true,
+              camera: true,
+              screenShare: true,
+              leave: true
+            }}
+          />
+        </LiveKitRoom>
       </div>
     </section>
   );

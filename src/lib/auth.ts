@@ -13,11 +13,14 @@ const credentialsSchema = z.object({
 
 export const authOptions: NextAuthOptions = {
   session: {
-    strategy: 'jwt'
+    strategy: 'jwt',
+    maxAge: 30 * 24 * 60 * 60 // 30 days
   },
   pages: {
     signIn: '/login'
   },
+  // Fix for Vercel: explicitly set the secret
+  secret: process.env.NEXTAUTH_SECRET,
   providers: [
     CredentialsProvider({
       name: 'Credentials',
@@ -41,7 +44,8 @@ export const authOptions: NextAuthOptions = {
           id: user.id,
           email: user.email,
           name: user.displayName,
-          username: user.username
+          username: user.username,
+          image: user.avatarUrl
         };
       }
     })
@@ -51,17 +55,30 @@ export const authOptions: NextAuthOptions = {
       if (user) {
         token.id = (user as { id: string }).id;
         token.username = (user as { username?: string }).username;
+        token.picture = user.image;
       }
       return token;
     },
     async session({ session, token }) {
       if (session.user) {
         (session.user as { id?: string }).id = token.id as string | undefined;
-        (session.user as { username?: string }).username = token.username as
-          | string
-          | undefined;
+        (session.user as { username?: string }).username = token.username as string | undefined;
       }
       return session;
+    }
+  },
+  // Fix for Vercel: ensure cookies work properly
+  cookies: {
+    sessionToken: {
+      name: process.env.NODE_ENV === 'production'
+        ? '__Secure-next-auth.session-token'
+        : 'next-auth.session-token',
+      options: {
+        httpOnly: true,
+        sameSite: 'lax',
+        path: '/',
+        secure: process.env.NODE_ENV === 'production'
+      }
     }
   }
 };

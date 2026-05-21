@@ -3,10 +3,12 @@ import { z } from 'zod';
 
 import { auth } from '@/lib/auth';
 import { db } from '@/lib/db';
-import { getIO } from '@/lib/io';
+import { pusherServer } from '@/lib/pusher';
 
 const createMessageSchema = z.object({
-  content: z.string().trim().min(1).max(4000)
+  content: z.string().trim().min(1).max(4000),
+  clientId: z.string().optional(),
+  attachments: z.array(z.string()).optional()
 });
 
 async function loadAuthorizedConversation(
@@ -45,8 +47,7 @@ export async function GET(
     session.user.id
   );
   if (!result.ok) {
-    const error =
-      result.status === 404 ? 'Conversation not found' : 'Forbidden';
+    const error = result.status === 404 ? 'Conversation not found' : 'Forbidden';
     return NextResponse.json({ error }, { status: result.status });
   }
 
@@ -78,8 +79,7 @@ export async function POST(
     session.user.id
   );
   if (!result.ok) {
-    const error =
-      result.status === 404 ? 'Conversation not found' : 'Forbidden';
+    const error = result.status === 404 ? 'Conversation not found' : 'Forbidden';
     return NextResponse.json({ error }, { status: result.status });
   }
 
@@ -102,7 +102,8 @@ export async function POST(
     data: {
       conversationId: result.conversationId,
       authorId: session.user.id,
-      content: parsed.data.content
+      content: parsed.data.content,
+      attachments: parsed.data.attachments ? JSON.stringify(parsed.data.attachments) : null
     },
     include: {
       author: {
@@ -111,12 +112,15 @@ export async function POST(
     }
   });
 
+  // Real-time broadcast via Pusher
   try {
-    getIO()
-      ?.to(`conversation:${result.conversationId}`)
-      .emit('message:new', message);
-  } catch {
-    // ignore
+    await pusherServer.trigger(
+      `private-conversation-${result.conversationId}`,
+      'message:new',
+      { ...message, clientId: parsed.data.clientId }
+    );
+  } catch (err) {
+    console.error('Pusher trigger failed:', err);
   }
 
   return NextResponse.json({ message });

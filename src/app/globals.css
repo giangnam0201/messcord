@@ -22,9 +22,60 @@ body {
   height: 8px;
 }
 *::-webkit-scrollbar-thumb {
-  background-color: #202225;
+  background-color: #1a1b1e;
   border-radius: 4px;
+}
+*::-webkit-scrollbar-thumb:hover {
+  background-color: #2c2d31;
 }
 *::-webkit-scrollbar-track {
   background-color: #2f3136;
+}
+
+/* LiveKit overrides for dark theme */
+[data-lk-theme='default'] {
+  --lk-bg: #36393f;
+  --lk-bg2: #2f3136;
+  --lk-fg: #f4f4f5;
+  --lk-border-color: #202225;
+  --lk-control-bg: #202225;
+  --lk-control-hover-bg: #40444b;
+}
+
+/* Emoji picker overrides */
+em-emoji-picker {
+  --background-rgb: 47, 49, 54;
+  --border-color: rgba(255, 255, 255, 0.1);
+  --category-icon-size: 18px;
+  --color-border: rgba(255, 255, 255, 0.1);
+  --color-border-over: rgba(255, 255, 255, 0.2);
+  --font-family: inherit;
+  --rgb-accent: 88, 101, 242;
+  --rgb-background: 47, 49, 54;
+  --rgb-color: 244, 244, 245;
+  --rgb-input: 32, 34, 37;
+  --shadow: none;
+}
+
+/* Smooth transitions for hover effects */
+@layer utilities {
+  .transition-discord {
+    transition: all 0.15s ease;
+  }
+}
+
+/* Loading skeleton animation */
+@keyframes shimmer {
+  0% {
+    background-position: -200px 0;
+  }
+  100% {
+    background-position: calc(200px + 100%) 0;
+  }
+}
+
+.skeleton {
+  background: linear-gradient(90deg, #2f3136 0px, #36393f 40px, #2f3136 80px);
+  background-size: 200px 100%;
+  animation: shimmer 1.5s infinite;
 }

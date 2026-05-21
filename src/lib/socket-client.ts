@@ -1,28 +1,9 @@
-'use client';
+// DEPRECATED: Socket.IO is no longer used.
+// Real-time is handled via Pusher (see src/lib/pusher.ts).
+// This file is kept to avoid import errors during migration.
 
-import { io, type Socket } from 'socket.io-client';
-
-let socket: Socket | null = null;
-
-/**
- * Returns a lazily-created singleton Socket.io client connected to the
- * same origin as the page (so it works alongside the Next dev server).
- *
- * Cookies (including the NextAuth session token) are sent automatically on
- * same-origin connections; `withCredentials: true` is set explicitly for clarity
- * and to support cross-origin deployments.
- */
-export function getSocket(): Socket {
-  if (typeof window === 'undefined') {
-    throw new Error('getSocket() can only be called in the browser');
-  }
-  if (!socket) {
-    socket = io({
-      path: '/socket.io',
-      autoConnect: true,
-      withCredentials: true,
-      transports: ['websocket', 'polling']
-    });
-  }
-  return socket;
+export function getSocket(): never {
+  throw new Error(
+    'Socket.IO is no longer used. Use Pusher for real-time messaging.'
+  );
 }

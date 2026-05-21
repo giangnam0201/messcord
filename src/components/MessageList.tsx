@@ -4,12 +4,15 @@ export type ChatMessage = {
   id: string;
   content: string;
   createdAt: string | Date;
+  attachments?: string | null;
+  stickerIds?: string | null;
   author: {
     id: string;
     username: string;
     displayName: string;
     avatarUrl: string | null;
   };
+  clientId?: string;
 };
 
 const FIVE_MINUTES_MS = 5 * 60 * 1000;
@@ -33,6 +36,64 @@ function formatStamp(d: Date): string {
     return `Today at ${format(d, 'h:mm a')}`;
   }
   return format(d, 'MMM d, yyyy h:mm a');
+}
+
+function isImageUrl(url: string): boolean {
+  return /\.(gif|png|jpg|jpeg|webp|svg)(\?.*)?$/i.test(url) ||
+    url.includes('tenor.com') ||
+    url.includes('giphy.com') ||
+    url.includes('media.tenor.com');
+}
+
+function isGifUrl(url: string): boolean {
+  return /\.gif(\?.*)?$/i.test(url) ||
+    url.includes('tenor.com') ||
+    url.includes('media.tenor.com');
+}
+
+function MessageContent({ content }: { content: string }) {
+  // Check if the entire message is a single URL (image/gif embed)
+  const trimmed = content.trim();
+  if (isImageUrl(trimmed) && !trimmed.includes(' ') && !trimmed.includes('\n')) {
+    return (
+      <div className="mt-1 max-w-md">
+        {/* eslint-disable-next-line @next/next/no-img-element */}
+        <img
+          src={trimmed}
+          alt="embedded media"
+          className={`rounded-lg max-h-72 w-auto object-contain ${isGifUrl(trimmed) ? '' : ''}`}
+          loading="lazy"
+        />
+      </div>
+    );
+  }
+
+  // Regular text with basic link detection
+  const urlRegex = /(https?:\/\/[^\s]+)/g;
+  const parts = trimmed.split(urlRegex);
+
+  return (
+    <p className="whitespace-pre-wrap break-words text-sm text-zinc-100">
+      {parts.map((part, i) => {
+        if (urlRegex.test(part)) {
+          // Reset lastIndex since we're reusing the regex
+          urlRegex.lastIndex = 0;
+          return (
+            <a
+              key={i}
+              href={part}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="text-blue-400 hover:underline"
+            >
+              {part}
+            </a>
+          );
+        }
+        return <span key={i}>{part}</span>;
+      })}
+    </p>
+  );
 }
 
 export function MessageList({ messages }: { messages: ChatMessage[] }) {
@@ -66,10 +127,12 @@ export function MessageList({ messages }: { messages: ChatMessage[] }) {
               key={msg.id}
               className="group flex items-start gap-3 rounded px-2 py-0.5 hover:bg-zinc-800/40"
             >
-              <span className="w-10 shrink-0" />
-              <p className="whitespace-pre-wrap break-words text-sm text-zinc-100">
-                {msg.content}
-              </p>
+              <span className="w-10 shrink-0 pt-0.5 text-[10px] text-zinc-600 opacity-0 group-hover:opacity-100">
+                {format(createdAt, 'h:mm a')}
+              </span>
+              <div className="min-w-0 flex-1">
+                <MessageContent content={msg.content} />
+              </div>
             </li>
           );
         }
@@ -100,9 +163,7 @@ export function MessageList({ messages }: { messages: ChatMessage[] }) {
                   {formatStamp(createdAt)}
                 </span>
               </div>
-              <p className="whitespace-pre-wrap break-words text-sm text-zinc-100">
-                {msg.content}
-              </p>
+              <MessageContent content={msg.content} />
             </div>
           </li>
         );

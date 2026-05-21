@@ -32,10 +32,20 @@ export async function POST(req: Request) {
 
   const { email, username, password } = parsed.data;
 
-  const existing = await db.user.findUnique({ where: { email } });
-  if (existing) {
+  // Check email uniqueness
+  const existingEmail = await db.user.findUnique({ where: { email } });
+  if (existingEmail) {
     return NextResponse.json(
       { error: 'A user with that email already exists' },
+      { status: 409 }
+    );
+  }
+
+  // Check username uniqueness
+  const existingUsername = await db.user.findUnique({ where: { username } });
+  if (existingUsername) {
+    return NextResponse.json(
+      { error: 'That username is already taken' },
       { status: 409 }
     );
   }
@@ -47,7 +57,8 @@ export async function POST(req: Request) {
       email,
       username,
       displayName: username,
-      passwordHash
+      passwordHash,
+      status: 'online'
     },
     select: {
       id: true,

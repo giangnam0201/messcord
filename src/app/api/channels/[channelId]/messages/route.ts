@@ -3,10 +3,14 @@ import { z } from 'zod';
 
 import { auth } from '@/lib/auth';
 import { db } from '@/lib/db';
-import { getIO } from '@/lib/io';
+import { pusherServer } from '@/lib/pusher';
 
 const createMessageSchema = z.object({
-  content: z.string().trim().min(1).max(4000)
+  content: z.string().trim().min(1).max(4000),
+  clientId: z.string().optional(),
+  replyToId: z.string().optional(),
+  attachments: z.array(z.string()).optional(),
+  stickerIds: z.array(z.string()).optional()
 });
 
 async function loadAuthorizedChannel(
@@ -94,7 +98,10 @@ export async function POST(
     data: {
       channelId: result.channel.id,
       authorId: session.user.id,
-      content: parsed.data.content
+      content: parsed.data.content,
+      replyToId: parsed.data.replyToId || null,
+      attachments: parsed.data.attachments ? JSON.stringify(parsed.data.attachments) : null,
+      stickerIds: parsed.data.stickerIds ? JSON.stringify(parsed.data.stickerIds) : null
     },
     include: {
       author: {
@@ -103,12 +110,15 @@ export async function POST(
     }
   });
 
-  // Best-effort real-time broadcast - if Socket.io is not running yet, the HTTP
-  // response still succeeds.
+  // Real-time broadcast via Pusher
   try {
-    getIO()?.to(`channel:${result.channel.id}`).emit('message:new', message);
-  } catch {
-    // ignore
+    await pusherServer.trigger(
+      `private-channel-${result.channel.id}`,
+      'message:new',
+      { ...message, clientId: parsed.data.clientId }
+    );
+  } catch (err) {
+    console.error('Pusher trigger failed:', err);
   }
 
   return NextResponse.json({ message });

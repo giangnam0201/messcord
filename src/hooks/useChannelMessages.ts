@@ -1,8 +1,8 @@
 'use client';
 
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 
-import { getSocket } from '@/lib/socket-client';
+import { getPusherClient } from '@/lib/pusher';
 import type { ChatMessage } from '@/components/MessageList';
 
 export type MessageTargetKind = 'channel' | 'conversation';
@@ -19,14 +19,8 @@ export type UseChannelMessagesArgs = {
   };
 };
 
-type IncomingMessage = ChatMessage & {
-  channelId?: string | null;
-  conversationId?: string | null;
-  clientId?: string;
-};
-
 /**
- * Subscribes to real-time messages for the given target (channel or conversation),
+ * Subscribes to real-time messages via Pusher for the given target,
  * tracks the message list, and exposes an optimistic `sendMessage`.
  */
 export function useChannelMessages({
@@ -42,40 +36,27 @@ export function useChannelMessages({
   const targetRef = useRef({ targetType, targetId });
   targetRef.current = { targetType, targetId };
 
-  const joinEvent = targetType === 'channel' ? 'channel:join' : 'conversation:join';
-  const leaveEvent =
-    targetType === 'channel' ? 'channel:leave' : 'conversation:leave';
-  const joinPayload = useMemo(
-    () =>
-      targetType === 'channel'
-        ? { channelId: targetId }
-        : { conversationId: targetId },
-    [targetType, targetId]
-  );
-
-  // Reset when the target changes (e.g. user navigates between channels).
+  // Reset when the target changes
   useEffect(() => {
     setMessages(initial);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [targetType, targetId]);
 
+  // Subscribe to Pusher channel for real-time updates
   useEffect(() => {
-    const socket = getSocket();
-    socket.emit(joinEvent, joinPayload);
+    const pusher = getPusherClient();
+    const channelName = targetType === 'channel'
+      ? `private-channel-${targetId}`
+      : `private-conversation-${targetId}`;
 
-    const handler = (incoming: IncomingMessage) => {
-      const t = targetRef.current;
-      const matches =
-        t.targetType === 'channel'
-          ? incoming.channelId === t.targetId
-          : incoming.conversationId === t.targetId;
-      if (!matches) return;
+    const channel = pusher.subscribe(channelName);
 
+    channel.bind('message:new', (incoming: ChatMessage & { clientId?: string }) => {
       setMessages((prev) => {
-        // De-dupe by id (server may broadcast to the sender too).
+        // De-dupe by id
         if (prev.some((m) => m.id === incoming.id)) return prev;
 
-        // Replace any optimistic placeholder with the same clientId.
+        // Replace optimistic placeholder
         if (incoming.clientId) {
           const idx = prev.findIndex(
             (m) => (m as ChatMessage & { clientId?: string }).clientId === incoming.clientId
@@ -88,37 +69,70 @@ export function useChannelMessages({
         }
         return [...prev, incoming];
       });
-    };
-    socket.on('message:new', handler);
+    });
+
+    channel.bind('message:update', (updated: ChatMessage) => {
+      setMessages((prev) =>
+        prev.map((m) => (m.id === updated.id ? updated : m))
+      );
+    });
+
+    channel.bind('message:delete', (data: { id: string }) => {
+      setMessages((prev) => prev.filter((m) => m.id !== data.id));
+    });
 
     return () => {
-      socket.off('message:new', handler);
-      socket.emit(leaveEvent, joinPayload);
+      channel.unbind_all();
+      pusher.unsubscribe(channelName);
     };
-  }, [joinEvent, leaveEvent, joinPayload]);
+  }, [targetType, targetId]);
 
   const sendMessage = useCallback(
-    (content: string) => {
+    async (content: string) => {
       const trimmed = content.trim();
       if (!trimmed) return;
-      const socket = getSocket();
+
       const clientId = `c_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
 
+      // Optimistic message
       const optimistic: ChatMessage & { clientId: string } = {
         id: `tmp_${clientId}`,
         clientId,
         content: trimmed,
-        createdAt: new Date(),
+        createdAt: new Date().toISOString(),
         author: currentUser
       };
       setMessages((prev) => [...prev, optimistic]);
 
-      socket.emit('message:send', {
-        targetType,
-        targetId,
-        content: trimmed,
-        clientId
-      });
+      // Send via API (which triggers Pusher broadcast)
+      const endpoint = targetType === 'channel'
+        ? `/api/channels/${targetId}/messages`
+        : `/api/conversations/${targetId}/messages`;
+
+      try {
+        const res = await fetch(endpoint, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ content: trimmed, clientId })
+        });
+
+        if (res.ok) {
+          const data = await res.json();
+          // Replace optimistic with real message
+          setMessages((prev) =>
+            prev.map((m) =>
+              (m as ChatMessage & { clientId?: string }).clientId === clientId
+                ? { ...data.message, clientId }
+                : m
+            )
+          );
+        }
+      } catch {
+        // Remove optimistic message on failure
+        setMessages((prev) =>
+          prev.filter((m) => (m as ChatMessage & { clientId?: string }).clientId !== clientId)
+        );
+      }
     },
     [targetType, targetId, currentUser]
   );

@@ -1,22 +1,29 @@
 // Prisma schema for Messcord (Discord clone)
-// SQLite is used for local dev; string-typed enums because SQLite has no native enum support.
+// PostgreSQL for production (Vercel Postgres / Neon / Supabase)
+// Falls back to SQLite for local dev if DATABASE_URL starts with "file:"
 
 generator client {
   provider = "prisma-client-js"
 }
 
 datasource db {
-  provider = "sqlite"
+  provider = "postgresql"
   url      = env("DATABASE_URL")
 }
 
 model User {
   id           String   @id @default(cuid())
   email        String   @unique
-  username     String
+  username     String   @unique
   displayName  String
   avatarUrl    String?
+  bannerUrl    String?
+  bio          String?  @default("")
   passwordHash String
+  isNitro      Boolean  @default(false)
+  nitroSince   DateTime?
+  status       String   @default("online") // online, idle, dnd, invisible
+  customStatus String?
   createdAt    DateTime @default(now())
   updatedAt    DateTime @updatedAt
 
@@ -26,28 +33,60 @@ model User {
   conversationMembers  ConversationMember[]
   friendshipsInitiated Friendship[]         @relation("FriendshipRequester")
   friendshipsReceived  Friendship[]         @relation("FriendshipAddressee")
+  reactions            Reaction[]
+  roles                UserRole[]
 }
 
 model Server {
-  id        String   @id @default(cuid())
-  name      String
-  iconUrl   String?
-  ownerId   String
-  createdAt DateTime @default(now())
+  id          String   @id @default(cuid())
+  name        String
+  iconUrl     String?
+  bannerUrl   String?
+  description String?  @default("")
+  ownerId     String
+  createdAt   DateTime @default(now())
 
   owner    User           @relation("ServerOwner", fields: [ownerId], references: [id], onDelete: Cascade)
   channels Channel[]
   members  ServerMember[]
+  roles    Role[]
+  emojis   CustomEmoji[]
 
   @@index([ownerId])
+}
+
+model Role {
+  id          String  @id @default(cuid())
+  serverId    String
+  name        String
+  color       String  @default("#99AAB5")
+  position    Int     @default(0)
+  permissions String  @default("0") // Bitfield as string
+  isDefault   Boolean @default(false)
+
+  server Server     @relation(fields: [serverId], references: [id], onDelete: Cascade)
+  users  UserRole[]
+
+  @@index([serverId])
+}
+
+model UserRole {
+  id     String @id @default(cuid())
+  userId String
+  roleId String
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+  role Role @relation(fields: [roleId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, roleId])
 }
 
 model ServerMember {
   id       String   @id @default(cuid())
   serverId String
   userId   String
-  // Stored as string: 'OWNER' | 'ADMIN' | 'MEMBER' (sqlite has no native enums)
-  role     String   @default("MEMBER")
+  nickname String?
+  role     String   @default("MEMBER") // OWNER | ADMIN | MODERATOR | MEMBER
   joinedAt DateTime @default(now())
 
   server Server @relation(fields: [serverId], references: [id], onDelete: Cascade)
@@ -61,9 +100,11 @@ model Channel {
   id        String   @id @default(cuid())
   serverId  String
   name      String
-  // Stored as string: 'TEXT' | 'VOICE'
-  type      String   @default("TEXT")
+  topic     String?
+  type      String   @default("TEXT") // TEXT | VOICE | VIDEO | ANNOUNCEMENT
   position  Int      @default(0)
+  isNsfw    Boolean  @default(false)
+  slowMode  Int      @default(0) // seconds
   createdAt DateTime @default(now())
 
   server   Server    @relation(fields: [serverId], references: [id], onDelete: Cascade)
@@ -78,6 +119,12 @@ model Message {
   conversationId String?
   authorId       String
   content        String
+  type           String    @default("DEFAULT") // DEFAULT | SYSTEM | REPLY
+  replyToId      String?
+  isPinned       Boolean   @default(false)
+  attachments    String?   // JSON array of attachment URLs
+  embeds         String?   // JSON array of embed objects
+  stickerIds     String?   // JSON array of sticker IDs
   createdAt      DateTime  @default(now())
   updatedAt      DateTime  @updatedAt
   deletedAt      DateTime?
@@ -85,10 +132,39 @@ model Message {
   author       User          @relation("MessageAuthor", fields: [authorId], references: [id], onDelete: Cascade)
   channel      Channel?      @relation(fields: [channelId], references: [id], onDelete: Cascade)
   conversation Conversation? @relation(fields: [conversationId], references: [id], onDelete: Cascade)
+  replyTo      Message?      @relation("MessageReplies", fields: [replyToId], references: [id], onDelete: SetNull)
+  replies      Message[]     @relation("MessageReplies")
+  reactions    Reaction[]
 
   @@index([channelId, createdAt])
   @@index([conversationId, createdAt])
   @@index([authorId])
+}
+
+model Reaction {
+  id        String   @id @default(cuid())
+  messageId String
+  userId    String
+  emoji     String   // Unicode emoji or custom emoji ID
+  createdAt DateTime @default(now())
+
+  message Message @relation(fields: [messageId], references: [id], onDelete: Cascade)
+  user    User    @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([messageId, userId, emoji])
+}
+
+model CustomEmoji {
+  id        String   @id @default(cuid())
+  serverId  String
+  name      String
+  imageUrl  String
+  animated  Boolean  @default(false)
+  createdAt DateTime @default(now())
+
+  server Server @relation(fields: [serverId], references: [id], onDelete: Cascade)
+
+  @@index([serverId])
 }
 
 model Conversation {
@@ -116,8 +192,7 @@ model Friendship {
   id          String   @id @default(cuid())
   requesterId String
   addresseeId String
-  // Stored as string: 'PENDING' | 'ACCEPTED' | 'BLOCKED'
-  status      String   @default("PENDING")
+  status      String   @default("PENDING") // PENDING | ACCEPTED | BLOCKED
   createdAt   DateTime @default(now())
 
   requester User @relation("FriendshipRequester", fields: [requesterId], references: [id], onDelete: Cascade)

@@ -1,135 +1,113 @@
-# Messcord - A Discord Clone
+# Messcord
 
-A full-featured Discord clone built with Next.js 14, featuring real-time messaging, voice channels with WebRTC, screen sharing, and direct messages.
+A full-featured Discord clone built with Next.js 14, featuring real-time messaging, voice/video chat, screen sharing, and more.
 
 ## Features
 
-- **Text Channels** - Real-time messaging with Socket.io
-- **Voice Channels** - WebRTC mesh audio/video calls
-- **Screen Share** - Share your screen in voice channels via getDisplayMedia
-- **Direct Messages** - Private 1-on-1 conversations
-- **Real-time Presence** - See who is online in each server
-- **Multiple Servers** - Create and join different servers with their own channels
-- **Credentials Auth** - Email/password authentication with NextAuth
+### Core Communication
+- **Real-time messaging** via Pusher (instant delivery, typing indicators)
+- **Voice & Video chat** via LiveKit (WebRTC, multi-user rooms)
+- **Screen sharing** with high-quality stream support
+- **Direct messages** between users
+- **Server channels** (text, voice, video)
+
+### Discord-like Features
+- **Roles & Permissions** - Full bitfield permission system (Administrator, Manage Server, etc.)
+- **Custom Emoji** - Server-specific custom emojis
+- **GIF Support** - Integrated Tenor GIF picker
+- **Emoji Picker** - Full Unicode emoji support with search
+- **Custom Avatars** - Profile pictures and banners
+- **User Profiles** - Bio, status, custom status, badges
+- **Nitro** - Subscription concept with perks (larger uploads, custom emojis everywhere)
+- **Message Reactions** - React to messages with emoji
+- **File Attachments** - Upload images and files via UploadThing
+- **Message Replies** - Reply to specific messages
+- **Rich Embeds** - Link previews and image embeds
+- **Member List** - Online/offline status with role badges
+
+### Technical
+- **Vercel-ready** - Optimized for serverless deployment
+- **PostgreSQL** - Production database (Neon/Supabase/Vercel Postgres)
+- **NextAuth.js** - Secure JWT-based authentication
+- **Prisma ORM** - Type-safe database access
+- **Responsive UI** - Mobile-friendly dark theme
 
 ## Tech Stack
 
-- **Framework**: Next.js 14 (App Router)
-- **Language**: TypeScript
-- **Styling**: Tailwind CSS
-- **Database**: Prisma ORM with SQLite (development)
-- **Auth**: NextAuth.js (Credentials provider)
-- **Real-time**: Socket.io
-- **Voice/Video**: WebRTC (peer mesh)
+| Layer | Technology |
+|-------|-----------|
+| Framework | Next.js 14 (App Router) |
+| Database | PostgreSQL + Prisma |
+| Auth | NextAuth.js v4 (JWT) |
+| Real-time | Pusher |
+| Voice/Video | LiveKit |
+| File Upload | UploadThing |
+| GIFs | Tenor API |
+| Styling | Tailwind CSS |
+| Deployment | Vercel |
 
-## Quick Start
+## Getting Started
 
+### Prerequisites
+- Node.js 18+
+- PostgreSQL database (or use [Neon](https://neon.tech) free tier)
+
+### 1. Install Dependencies
 ```bash
-git clone <repo-url> && cd messcord
 npm install
-npm run db:push
-npm run db:seed
+```
+
+### 2. Set Environment Variables
+Copy `.env.example` to `.env` and fill in the values:
+```bash
+cp .env.example .env
+```
+
+Required services (all have free tiers):
+- **Database**: [Neon](https://neon.tech) or [Supabase](https://supabase.com)
+- **Pusher**: [pusher.com](https://pusher.com) (200k messages/day free)
+- **LiveKit**: [livekit.io](https://livekit.io) (free tier available)
+- **Tenor**: [Google Tenor API](https://developers.google.com/tenor)
+
+### 3. Set Up Database
+```bash
+npx prisma db push
+npx prisma db seed  # Optional: seed with sample data
+```
+
+### 4. Run Development Server
+```bash
 npm run dev
 ```
 
-Open [http://localhost:3000](http://localhost:3000)
-
-> `npm install` runs a `postinstall` script that auto-creates `.env` from
-> `.env.example` if it does not already exist (so the steps above work on
-> Windows, macOS, and Linux without `cp`). You can re-run it manually with
-> `npm run setup`. Edit `.env` to set a real `NEXTAUTH_SECRET` before
-> deploying anywhere other than your local machine.
-
-## Demo Credentials
-
-| User  | Email           | Password      |
-|-------|-----------------|---------------|
-| Alice | alice@demo.dev  | password123   |
-| Bob   | bob@demo.dev    | password123   |
-| Carol | carol@demo.dev  | password123   |
-
-## Manual Testing Guide
-
-1. Open two private/incognito browser windows
-2. In window 1, log in as **alice@demo.dev** (password: `password123`)
-3. In window 2, log in as **bob@demo.dev** (password: `password123`)
-4. Both users join **#general** in the Demo Server
-5. Alice sends a message - Bob should receive it in real time without refreshing
-6. Both users join the **Lounge** voice channel to test voice chat
-7. Click the screen share button to test screen sharing (requires HTTPS in production)
-
-## Architecture Overview
-
-```
-+------------------+         +------------------+
-|    Browser A     |         |    Browser B     |
-|  (Next.js SPA)  |         |  (Next.js SPA)  |
-+--------+---------+         +--------+---------+
-         |                            |
-         |  HTTP / WebSocket          |  HTTP / WebSocket
-         |                            |
-+--------v----------------------------v---------+
-|            server.ts                          |
-|   +----------------+  +------------------+   |
-|   |   Next.js      |  |   Socket.io      |   |
-|   |   (App Router) |  |   (signaling,    |   |
-|   |                |  |    presence,      |   |
-|   |                |  |    messages)      |   |
-|   +-------+--------+  +--------+---------+   |
-|           |                     |             |
-|           +----------+----------+             |
-|                      |                        |
-|              +-------v--------+               |
-|              |  Prisma ORM    |               |
-|              |  (SQLite dev)  |               |
-|              +----------------+               |
-+-----------------------------------------------+
-
-+------------------+         +------------------+
-|    Browser A     |<------->|    Browser B     |
-|  (WebRTC peer)   | Direct  |  (WebRTC peer)   |
-+------------------+  Mesh   +------------------+
-```
-
-Browser <-> HTTP/WS -> server.ts (Next.js + Socket.io) -> Prisma/SQLite
-
-Browser <-> WebRTC (peer mesh) <-> Browser
-
-## Design Decisions and Tradeoffs
-
-- **WebRTC mesh over SFU**: No extra infrastructure needed. Each peer connects directly to every other peer. This eliminates the need for a media server but limits scalability.
-- **SQLite for development**: Zero configuration database that works out of the box. Swap to PostgreSQL for production.
-- **Signaling auth via NextAuth JWT cookie**: The Socket.io handshake forwards the NextAuth session cookie, so signaling connections are authenticated without a separate auth flow.
-- **STUN-only (no TURN)**: Reduces infrastructure requirements. Peers use Google's public STUN servers for NAT traversal. However, peers behind symmetric NAT may fail to connect without a TURN server.
-
-## Known Limitations
-
-- No message edit/delete UI
-- No file uploads
-- No roles/permissions UI
-- WebRTC mesh does not scale past ~6 voice peers
-- No TURN server (peers behind symmetric NAT may not connect)
-
-## Docker
-
-Build and run with Docker Compose:
-
+### 5. Deploy to Vercel
 ```bash
-cp .env.example .env
-docker compose up --build
+npx vercel
 ```
 
-This is a development convenience. For production, use PostgreSQL and a proper orchestration setup.
+Or connect your GitHub repository to Vercel for automatic deployments.
 
-See [Production Notes](#production-notes) for deployment guidance.
+## Environment Variables
 
-## Production Notes
+| Variable | Required | Description |
+|----------|----------|-------------|
+| `DATABASE_URL` | Yes | PostgreSQL connection string |
+| `NEXTAUTH_SECRET` | Yes | Random secret for JWT signing |
+| `NEXTAUTH_URL` | Yes* | Your app URL (auto-set on Vercel) |
+| `NEXT_PUBLIC_PUSHER_APP_KEY` | Yes | Pusher app key |
+| `PUSHER_APP_ID` | Yes | Pusher app ID |
+| `PUSHER_SECRET` | Yes | Pusher secret |
+| `NEXT_PUBLIC_PUSHER_CLUSTER` | Yes | Pusher cluster region |
+| `LIVEKIT_API_KEY` | For voice | LiveKit API key |
+| `LIVEKIT_API_SECRET` | For voice | LiveKit API secret |
+| `NEXT_PUBLIC_LIVEKIT_URL` | For voice | LiveKit WebSocket URL |
+| `NEXT_PUBLIC_TENOR_API_KEY` | For GIFs | Tenor/Google API key |
 
-- Swap `DATABASE_URL` to a PostgreSQL connection string
-- Set a strong, random `NEXTAUTH_SECRET`
-- Run behind HTTPS (required for `getUserMedia` and `getDisplayMedia` to work in browsers)
-- Consider adding a TURN server for NAT traversal in restrictive network environments
-- Use a process manager or container orchestrator for reliability
+*`NEXTAUTH_URL` is automatically set by Vercel in production.
+
+## Contributing
+
+Made with ❤️ by giangnam0201 & kiro-agent
 
 ## License
 

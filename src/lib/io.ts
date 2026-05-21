@@ -1,16 +1,11 @@
-import type { Server } from 'socket.io';
+// This file is kept for backwards compatibility but is no longer used.
+// Real-time is now handled via Pusher (see src/lib/pusher.ts).
+// Voice/video is handled via LiveKit (see src/lib/livekit.ts).
 
-/**
- * Singleton holder for the running Socket.io server instance, so route handlers
- * (which run inside Next.js but share the same Node process as server.ts) can
- * broadcast events after persisting data.
- */
-let io: Server | null = null;
-
-export function setIO(instance: Server): void {
-  io = instance;
+export function getIO(): null {
+  return null;
 }
 
-export function getIO(): Server | null {
-  return io;
+export function setIO(): void {
+  // no-op
 }

@@ -4,157 +4,240 @@ import bcrypt from 'bcryptjs';
 const prisma = new PrismaClient();
 
 async function main() {
+  console.log('🌱 Seeding database...');
+
+  // Create users
   const passwordHash = await bcrypt.hash('password123', 10);
 
   const alice = await prisma.user.upsert({
-    where: { email: 'alice@demo.dev' },
+    where: { email: 'alice@example.com' },
     update: {},
     create: {
-      email: 'alice@demo.dev',
+      email: 'alice@example.com',
       username: 'alice',
       displayName: 'Alice',
-      passwordHash
+      passwordHash,
+      status: 'online',
+      bio: 'Hey there! I love coding and gaming.',
+      isNitro: true
     }
   });
 
   const bob = await prisma.user.upsert({
-    where: { email: 'bob@demo.dev' },
+    where: { email: 'bob@example.com' },
     update: {},
     create: {
-      email: 'bob@demo.dev',
+      email: 'bob@example.com',
       username: 'bob',
       displayName: 'Bob',
-      passwordHash
+      passwordHash,
+      status: 'idle',
+      bio: 'Music producer and developer.'
     }
   });
 
-  const carol = await prisma.user.upsert({
-    where: { email: 'carol@demo.dev' },
+  const charlie = await prisma.user.upsert({
+    where: { email: 'charlie@example.com' },
     update: {},
     create: {
-      email: 'carol@demo.dev',
-      username: 'carol',
-      displayName: 'Carol',
-      passwordHash
+      email: 'charlie@example.com',
+      username: 'charlie',
+      displayName: 'Charlie',
+      passwordHash,
+      status: 'dnd'
     }
   });
 
-  // Find or create the demo server (idempotent by owner+name).
-  let server = await prisma.server.findFirst({
-    where: { ownerId: alice.id, name: 'Messcord HQ' }
+  // Create a server
+  const server = await prisma.server.upsert({
+    where: { id: 'seed-server-1' },
+    update: {},
+    create: {
+      id: 'seed-server-1',
+      name: 'Messcord Hub',
+      description: 'The official Messcord community server',
+      ownerId: alice.id
+    }
   });
-  if (!server) {
-    server = await prisma.server.create({
-      data: {
-        name: 'Messcord HQ',
-        ownerId: alice.id
-      }
-    });
-  }
 
-  // Owner + member rows
+  // Create channels
+  await prisma.channel.upsert({
+    where: { id: 'seed-channel-general' },
+    update: {},
+    create: {
+      id: 'seed-channel-general',
+      serverId: server.id,
+      name: 'general',
+      type: 'TEXT',
+      topic: 'General discussion',
+      position: 0
+    }
+  });
+
+  await prisma.channel.upsert({
+    where: { id: 'seed-channel-random' },
+    update: {},
+    create: {
+      id: 'seed-channel-random',
+      serverId: server.id,
+      name: 'random',
+      type: 'TEXT',
+      topic: 'Off-topic chat',
+      position: 1
+    }
+  });
+
+  await prisma.channel.upsert({
+    where: { id: 'seed-channel-voice' },
+    update: {},
+    create: {
+      id: 'seed-channel-voice',
+      serverId: server.id,
+      name: 'Lounge',
+      type: 'VOICE',
+      position: 2
+    }
+  });
+
+  await prisma.channel.upsert({
+    where: { id: 'seed-channel-video' },
+    update: {},
+    create: {
+      id: 'seed-channel-video',
+      serverId: server.id,
+      name: 'Stream Room',
+      type: 'VIDEO',
+      position: 3
+    }
+  });
+
+  // Add members
   await prisma.serverMember.upsert({
     where: { serverId_userId: { serverId: server.id, userId: alice.id } },
-    update: { role: 'OWNER' },
+    update: {},
     create: { serverId: server.id, userId: alice.id, role: 'OWNER' }
   });
+
   await prisma.serverMember.upsert({
     where: { serverId_userId: { serverId: server.id, userId: bob.id } },
     update: {},
-    create: { serverId: server.id, userId: bob.id, role: 'MEMBER' }
+    create: { serverId: server.id, userId: bob.id, role: 'ADMIN' }
   });
+
   await prisma.serverMember.upsert({
-    where: { serverId_userId: { serverId: server.id, userId: carol.id } },
+    where: { serverId_userId: { serverId: server.id, userId: charlie.id } },
     update: {},
-    create: { serverId: server.id, userId: carol.id, role: 'MEMBER' }
+    create: { serverId: server.id, userId: charlie.id, role: 'MEMBER' }
   });
 
-  // Channels (idempotent by serverId+name)
-  async function ensureChannel(name: string, type: 'TEXT' | 'VOICE', position: number) {
-    const existing = await prisma.channel.findFirst({
-      where: { serverId: server!.id, name }
-    });
-    if (existing) return existing;
-    return prisma.channel.create({
-      data: { serverId: server!.id, name, type, position }
-    });
-  }
-
-  const general = await ensureChannel('general', 'TEXT', 0);
-  await ensureChannel('random', 'TEXT', 1);
-  await ensureChannel('Lounge', 'VOICE', 2);
-
-  // Welcome messages in #general (only if the channel has no messages yet)
-  const generalCount = await prisma.message.count({ where: { channelId: general.id } });
-  if (generalCount === 0) {
-    await prisma.message.createMany({
-      data: [
-        {
-          channelId: general.id,
-          authorId: alice.id,
-          content: 'Welcome to Messcord HQ! 🎉'
-        },
-        {
-          channelId: general.id,
-          authorId: bob.id,
-          content: 'Hey everyone, glad to be here.'
-        },
-        {
-          channelId: general.id,
-          authorId: carol.id,
-          content: 'Hello world!'
-        }
-      ]
-    });
-  }
-
-  // DM conversation between alice and bob (idempotent)
-  let conversation = await prisma.conversation.findFirst({
-    where: {
-      AND: [
-        { participants: { some: { userId: alice.id } } },
-        { participants: { some: { userId: bob.id } } }
-      ]
+  // Create roles
+  await prisma.role.upsert({
+    where: { id: 'seed-role-everyone' },
+    update: {},
+    create: {
+      id: 'seed-role-everyone',
+      serverId: server.id,
+      name: '@everyone',
+      color: '#99AAB5',
+      isDefault: true,
+      position: 0
     }
   });
-  if (!conversation) {
-    conversation = await prisma.conversation.create({
-      data: {
-        participants: {
-          create: [{ userId: alice.id }, { userId: bob.id }]
-        }
-      }
-    });
-  }
 
-  const dmCount = await prisma.message.count({
-    where: { conversationId: conversation.id }
+  await prisma.role.upsert({
+    where: { id: 'seed-role-mod' },
+    update: {},
+    create: {
+      id: 'seed-role-mod',
+      serverId: server.id,
+      name: 'Moderator',
+      color: '#3498db',
+      position: 1
+    }
   });
-  if (dmCount === 0) {
-    await prisma.message.createMany({
-      data: [
-        {
-          conversationId: conversation.id,
-          authorId: alice.id,
-          content: 'Hey Bob, want to test the DMs?'
-        },
-        {
-          conversationId: conversation.id,
-          authorId: bob.id,
-          content: 'Sure! This works.'
-        }
-      ]
-    });
-  }
 
-  console.log('Seed complete.');
-  console.log(`  users: ${alice.email}, ${bob.email}, ${carol.email}`);
-  console.log(`  server: ${server.name} (${server.id})`);
+  await prisma.role.upsert({
+    where: { id: 'seed-role-vip' },
+    update: {},
+    create: {
+      id: 'seed-role-vip',
+      serverId: server.id,
+      name: 'VIP',
+      color: '#f1c40f',
+      position: 2
+    }
+  });
+
+  // Create a DM conversation
+  const conversation = await prisma.conversation.upsert({
+    where: { id: 'seed-convo-1' },
+    update: {},
+    create: { id: 'seed-convo-1' }
+  });
+
+  await prisma.conversationMember.upsert({
+    where: { conversationId_userId: { conversationId: conversation.id, userId: alice.id } },
+    update: {},
+    create: { conversationId: conversation.id, userId: alice.id }
+  });
+
+  await prisma.conversationMember.upsert({
+    where: { conversationId_userId: { conversationId: conversation.id, userId: bob.id } },
+    update: {},
+    create: { conversationId: conversation.id, userId: bob.id }
+  });
+
+  // Create some sample messages
+  await prisma.message.createMany({
+    data: [
+      {
+        channelId: 'seed-channel-general',
+        authorId: alice.id,
+        content: 'Welcome to Messcord! 🎉'
+      },
+      {
+        channelId: 'seed-channel-general',
+        authorId: bob.id,
+        content: 'Hey everyone! Great to be here.'
+      },
+      {
+        channelId: 'seed-channel-general',
+        authorId: charlie.id,
+        content: 'This is awesome! Love the voice chat feature.'
+      },
+      {
+        conversationId: conversation.id,
+        authorId: alice.id,
+        content: 'Hey Bob, how are you?'
+      },
+      {
+        conversationId: conversation.id,
+        authorId: bob.id,
+        content: 'Doing great! Check out this GIF: https://media.tenor.com/images/cool.gif'
+      }
+    ],
+    skipDuplicates: true
+  });
+
+  // Friendship between Alice and Bob
+  await prisma.friendship.upsert({
+    where: { requesterId_addresseeId: { requesterId: alice.id, addresseeId: bob.id } },
+    update: {},
+    create: {
+      requesterId: alice.id,
+      addresseeId: bob.id,
+      status: 'ACCEPTED'
+    }
+  });
+
+  console.log('✅ Seed complete!');
+  console.log('   Users: alice@example.com, bob@example.com, charlie@example.com');
+  console.log('   Password: password123');
 }
 
 main()
-  .catch((err) => {
-    console.error(err);
+  .catch((e) => {
+    console.error('❌ Seed failed:', e);
     process.exit(1);
   })
   .finally(async () => {
