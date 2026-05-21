@@ -7,6 +7,7 @@ import { Hash, Plus, Volume2 } from 'lucide-react';
 
 import { CreateChannelModal } from '@/components/CreateChannelModal';
 import { UserPanel } from '@/components/UserPanel';
+import { useChannelContextMenu } from '@/hooks/useChannelContextMenu';
 import { cn } from '@/lib/utils';
 
 export type ChannelSidebarChannel = {
@@ -36,6 +37,16 @@ export function ChannelSidebar({
   const match = pathname.match(/^\/channels\/[^/]+\/([^/]+)/);
   const activeChannelId = match ? match[1]! : null;
   const [createType, setCreateType] = useState<'TEXT' | 'VOICE' | null>(null);
+
+  const { showChannelMenu } = useChannelContextMenu({
+    isOwner,
+    onEdit: (channelId) => {
+      // TODO: open edit modal
+    },
+    onDelete: (channelId) => {
+      // TODO: delete channel API
+    }
+  });
 
   const textChannels = channels.filter((c) => c.type === 'TEXT');
   const voiceChannels = channels.filter((c) => c.type === 'VOICE');
@@ -70,6 +81,7 @@ export function ChannelSidebar({
       <li key={channel.id}>
         <Link
           href={`/channels/${serverId}/${channel.id}`}
+          onContextMenu={(e) => showChannelMenu(e, { id: channel.id, name: channel.name, type: channel.type as 'TEXT' | 'VOICE' | 'VIDEO' | 'ANNOUNCEMENT' })}
           className={cn(
             'flex items-center gap-2 rounded px-2 py-1.5 text-sm text-zinc-400 hover:bg-zinc-700/40 hover:text-zinc-100',
             active && 'bg-zinc-700/60 text-zinc-50'

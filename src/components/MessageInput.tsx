@@ -16,10 +16,12 @@ const GifPicker = dynamic(() => import('@/components/GifPicker'), {
 
 export function MessageInput({
   placeholder,
-  onSend
+  onSend,
+  onTyping
 }: {
   placeholder: string;
   onSend: (content: string) => void;
+  onTyping?: () => void;
 }) {
   const textareaRef = useRef<HTMLTextAreaElement | null>(null);
   const [content, setContent] = useState('');
@@ -84,7 +86,10 @@ export function MessageInput({
           ref={textareaRef}
           rows={1}
           value={content}
-          onChange={(e) => setContent(e.target.value)}
+          onChange={(e) => {
+            setContent(e.target.value);
+            onTyping?.();
+          }}
           onKeyDown={onKeyDown}
           placeholder={placeholder}
           disabled={submitting}
