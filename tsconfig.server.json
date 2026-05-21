@@ -9,6 +9,11 @@
     "isolatedModules": false,
     "jsx": "preserve"
   },
-  "include": ["server.ts", "src/lib/socket-server.ts"],
+  "include": [
+    "server.ts",
+    "src/lib/socket-server.ts",
+    "src/lib/io.ts",
+    "src/lib/db.ts"
+  ],
   "exclude": ["node_modules", "dist", ".next"]
 }

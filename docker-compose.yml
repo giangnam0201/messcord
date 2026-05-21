@@ -1,0 +1,11 @@
+version: "3.9"
+services:
+  app:
+    build: .
+    env_file: .env
+    ports:
+      - "3000:3000"
+    volumes:
+      - ./prisma:/app/prisma
+    environment:
+      - DATABASE_URL=file:./prisma/dev.db
