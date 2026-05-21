@@ -27,13 +27,18 @@ A full-featured Discord clone built with Next.js 14, featuring real-time messagi
 ```bash
 git clone <repo-url> && cd messcord
 npm install
-cp .env.example .env
 npm run db:push
 npm run db:seed
 npm run dev
 ```
 
 Open [http://localhost:3000](http://localhost:3000)
+
+> `npm install` runs a `postinstall` script that auto-creates `.env` from
+> `.env.example` if it does not already exist (so the steps above work on
+> Windows, macOS, and Linux without `cp`). You can re-run it manually with
+> `npm run setup`. Edit `.env` to set a real `NEXTAUTH_SECRET` before
+> deploying anywhere other than your local machine.
 
 ## Demo Credentials
 
