@@ -1,7 +1,7 @@
 'use client';
 
 import Link from 'next/link';
-import { usePathname } from 'next/navigation';
+import { usePathname, useRouter } from 'next/navigation';
 import { useState } from 'react';
 import { Hash, Plus, Volume2, UserPlus, Settings } from 'lucide-react';
 
@@ -35,19 +35,42 @@ export function ChannelSidebar({
   };
 }) {
   const pathname = usePathname() ?? '';
+  const router = useRouter();
   const match = pathname.match(/^\/channels\/[^/]+\/([^/]+)/);
   const activeChannelId = match ? match[1]! : null;
   const [createType, setCreateType] = useState<'TEXT' | 'VOICE' | null>(null);
   const [showInvite, setShowInvite] = useState(false);
 
+  const handleEditChannel = async (channelId: string) => {
+    const channel = channels.find(c => c.id === channelId);
+    if (!channel) return;
+    const newName = prompt('Enter new channel name:', channel.name);
+    if (!newName || newName === channel.name) return;
+
+    const res = await fetch(`/api/servers/${serverId}/channels/${channelId}`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ name: newName })
+    });
+    if (res.ok) {
+      router.refresh();
+    }
+  };
+
+  const handleDeleteChannel = async (channelId: string) => {
+    if (!confirm('Are you sure you want to delete this channel?')) return;
+    const res = await fetch(`/api/servers/${serverId}/channels/${channelId}`, {
+      method: 'DELETE'
+    });
+    if (res.ok) {
+      router.refresh();
+    }
+  };
+
   const { showChannelMenu } = useChannelContextMenu({
     isOwner,
-    onEdit: (channelId) => {
-      // TODO: open edit modal
-    },
-    onDelete: (channelId) => {
-      // TODO: delete channel API
-    }
+    onEdit: handleEditChannel,
+    onDelete: handleDeleteChannel
   });
 
   const textChannels = channels.filter((c) => c.type === 'TEXT');

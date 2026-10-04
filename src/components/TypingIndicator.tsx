@@ -34,7 +34,7 @@ export function TypingIndicator({
     const pusher = getPusherClient();
     const channel = pusher.subscribe(channelName);
 
-    channel.bind('typing:start', (data: { userId: string; username: string }) => {
+    const handleStart = (data: { userId: string; username: string }) => {
       if (data.userId === currentUserId) return;
       setTypingUsers((prev) => {
         const existing = prev.find((u) => u.userId === data.userId);
@@ -45,15 +45,18 @@ export function TypingIndicator({
         }
         return [...prev, { userId: data.userId, username: data.username, expiresAt: Date.now() + 5000 }];
       });
-    });
+    };
 
-    channel.bind('typing:stop', (data: { userId: string }) => {
+    const handleStop = (data: { userId: string }) => {
       setTypingUsers((prev) => prev.filter((u) => u.userId !== data.userId));
-    });
+    };
+
+    channel.bind('typing:start', handleStart);
+    channel.bind('typing:stop', handleStop);
 
     return () => {
-      channel.unbind('typing:start');
-      channel.unbind('typing:stop');
+      channel.unbind('typing:start', handleStart);
+      channel.unbind('typing:stop', handleStop);
       pusher.unsubscribe(channelName);
     };
   }, [channelName, currentUserId]);

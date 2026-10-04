@@ -4,6 +4,7 @@ import { useState } from 'react';
 import { Settings, Mic, Headphones } from 'lucide-react';
 
 import { SignOutButton } from '@/components/SignOutButton';
+import { UserSettingsModal } from '@/components/UserSettingsModal';
 
 function initials(name: string): string {
   return name
@@ -28,6 +29,7 @@ export function UserPanel({
   const label = displayName || username;
   const [muted, setMuted] = useState(false);
   const [deafened, setDeafened] = useState(false);
+  const [showSettings, setShowSettings] = useState(false);
 
   const statusColors: Record<string, string> = {
     online: 'bg-emerald-500',
@@ -74,8 +76,23 @@ export function UserPanel({
         >
           <Headphones className="h-4 w-4" />
         </button>
+        <button
+          type="button"
+          onClick={() => setShowSettings(true)}
+          className="flex h-7 w-7 items-center justify-center rounded text-zinc-400 hover:bg-zinc-700 hover:text-zinc-100"
+          title="User Settings"
+        >
+          <Settings className="h-4 w-4" />
+        </button>
         <SignOutButton />
       </div>
+
+      {showSettings && (
+        <UserSettingsModal
+          user={{ username, displayName, avatarUrl, status }}
+          onClose={() => setShowSettings(false)}
+        />
+      )}
     </div>
   );
 }

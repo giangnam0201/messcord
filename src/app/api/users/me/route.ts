@@ -1,87 +1,68 @@
 import { NextResponse } from 'next/server';
-import { z } from 'zod';
-
 import { auth } from '@/lib/auth';
 import { db } from '@/lib/db';
 
-const updateProfileSchema = z.object({
-  displayName: z.string().min(1).max(64).optional(),
-  avatarUrl: z.string().url().optional().nullable(),
-  bannerUrl: z.string().url().optional().nullable(),
-  bio: z.string().max(500).optional(),
-  status: z.enum(['online', 'idle', 'dnd', 'invisible']).optional(),
-  customStatus: z.string().max(128).optional().nullable()
-});
-
 export async function GET() {
-  const session = await auth();
-  if (!session?.user?.id) {
-    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-  }
-
-  const user = await db.user.findUnique({
-    where: { id: session.user.id },
-    select: {
-      id: true,
-      email: true,
-      username: true,
-      displayName: true,
-      avatarUrl: true,
-      bannerUrl: true,
-      bio: true,
-      isNitro: true,
-      nitroSince: true,
-      status: true,
-      customStatus: true,
-      createdAt: true
+  try {
+    const session = await auth();
+    if (!session?.user?.id) {
+      return new NextResponse('Unauthorized', { status: 401 });
     }
-  });
 
-  if (!user) {
-    return NextResponse.json({ error: 'User not found' }, { status: 404 });
+    const user = await db.user.findUnique({
+      where: { id: session.user.id },
+      select: {
+        id: true,
+        username: true,
+        displayName: true,
+        avatarUrl: true,
+        status: true,
+        isNitro: true,
+        bio: true,
+        customStatus: true,
+        createdAt: true
+      }
+    });
+
+    if (!user) {
+      return new NextResponse('User not found', { status: 404 });
+    }
+
+    return NextResponse.json({ user });
+  } catch (error) {
+    console.error('[USERS_ME_GET_ERROR]', error);
+    return new NextResponse('Internal Error', { status: 500 });
   }
-
-  return NextResponse.json({ user });
 }
 
 export async function PATCH(req: Request) {
-  const session = await auth();
-  if (!session?.user?.id) {
-    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-  }
-
-  let body: unknown;
   try {
-    body = await req.json();
-  } catch {
-    return NextResponse.json({ error: 'Invalid JSON body' }, { status: 400 });
-  }
-
-  const parsed = updateProfileSchema.safeParse(body);
-  if (!parsed.success) {
-    return NextResponse.json(
-      { error: 'Validation failed', issues: parsed.error.flatten() },
-      { status: 400 }
-    );
-  }
-
-  const user = await db.user.update({
-    where: { id: session.user.id },
-    data: parsed.data,
-    select: {
-      id: true,
-      email: true,
-      username: true,
-      displayName: true,
-      avatarUrl: true,
-      bannerUrl: true,
-      bio: true,
-      isNitro: true,
-      status: true,
-      customStatus: true,
-      createdAt: true
+    const session = await auth();
+    if (!session?.user?.id) {
+      return new NextResponse('Unauthorized', { status: 401 });
     }
-  });
 
-  return NextResponse.json({ user });
+    const { displayName, avatarUrl, status } = await req.json();
+
+    const updatedUser = await db.user.update({
+      where: { id: session.user.id },
+      data: {
+        ...(displayName && { displayName: displayName.trim() }),
+        ...(avatarUrl !== undefined && { avatarUrl: avatarUrl ? avatarUrl.trim() : null }),
+        ...(status && { status })
+      },
+      select: {
+        id: true,
+        username: true,
+        displayName: true,
+        avatarUrl: true,
+        status: true
+      }
+    });
+
+    return NextResponse.json({ user: updatedUser });
+  } catch (error) {
+    console.error('[USERS_ME_PATCH_ERROR]', error);
+    return new NextResponse('Internal Error', { status: 500 });
+  }
 }
