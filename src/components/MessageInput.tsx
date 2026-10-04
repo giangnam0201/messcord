@@ -1,7 +1,8 @@
 'use client';
 
 import { useRef, useState, useCallback } from 'react';
-import { Smile, Gift, Send } from 'lucide-react';
+import { Smile, Gift, Send, X } from 'lucide-react';
+import type { ChatMessage } from '@/components/MessageList';
 import dynamic from 'next/dynamic';
 import { FileUploadButton, type UploadedFile } from '@/components/FileUploadButton';
 
@@ -17,10 +18,14 @@ const GifPicker = dynamic(() => import('@/components/GifPicker'), {
 
 export function MessageInput({
   placeholder,
+  replyingTo,
+  onCancelReply,
   onSend,
   onTyping
 }: {
   placeholder: string;
+  replyingTo?: ChatMessage | null;
+  onCancelReply?: () => void;
   onSend: (content: string) => void;
   onTyping?: () => void;
 }) {
@@ -76,6 +81,24 @@ export function MessageInput({
 
   return (
     <div className="relative px-4 pb-6 pt-2">
+      {replyingTo && (
+        <div className="mb-1 flex items-center justify-between rounded-t bg-zinc-800/80 px-3 py-1 text-xs text-zinc-300">
+          <div className="flex items-center gap-1.5 truncate">
+            <span className="font-semibold text-discord-accent">
+              Replying to @{replyingTo.author.displayName || replyingTo.author.username}:
+            </span>
+            <span className="truncate opacity-80">{replyingTo.content}</span>
+          </div>
+          <button
+            type="button"
+            onClick={onCancelReply}
+            className="text-zinc-400 hover:text-zinc-100"
+          >
+            <X className="h-3.5 w-3.5" />
+          </button>
+        </div>
+      )}
+
       {showEmoji && (
         <div className="absolute bottom-full left-4 mb-2 z-50">
           <EmojiPicker onSelect={handleEmojiSelect} onClose={() => setShowEmoji(false)} />

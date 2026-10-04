@@ -38,7 +38,7 @@ export function MessageReactions({
     const pusher = getPusherClient();
     const channel = pusher.subscribe(channelName);
 
-    channel.bind('reaction:add', (data: { messageId: string; userId: string; emoji: string; user: { id: string; username: string } }) => {
+    const handleAdd = (data: { messageId: string; userId: string; emoji: string; user: { id: string; username: string } }) => {
       if (data.messageId !== messageId) return;
       setReactions(prev => {
         const existing = prev.find(r => r.emoji === data.emoji);
@@ -48,7 +48,7 @@ export function MessageReactions({
               ? {
                   ...r,
                   count: r.count + 1,
-                  users: [...r.users, data.user],
+                  users: r.users.some(u => u.id === data.user.id) ? r.users : [...r.users, data.user],
                   userReacted: data.userId === currentUserId ? true : r.userReacted
                 }
               : r
@@ -61,9 +61,9 @@ export function MessageReactions({
           userReacted: data.userId === currentUserId
         }];
       });
-    });
+    };
 
-    channel.bind('reaction:remove', (data: { messageId: string; userId: string; emoji: string }) => {
+    const handleRemove = (data: { messageId: string; userId: string; emoji: string }) => {
       if (data.messageId !== messageId) return;
       setReactions(prev => {
         return prev
@@ -71,18 +71,21 @@ export function MessageReactions({
             if (r.emoji !== data.emoji) return r;
             return {
               ...r,
-              count: r.count - 1,
+              count: Math.max(0, r.count - 1),
               users: r.users.filter(u => u.id !== data.userId),
               userReacted: data.userId === currentUserId ? false : r.userReacted
             };
           })
           .filter(r => r.count > 0);
       });
-    });
+    };
+
+    channel.bind('reaction:add', handleAdd);
+    channel.bind('reaction:remove', handleRemove);
 
     return () => {
-      channel.unbind('reaction:add');
-      channel.unbind('reaction:remove');
+      channel.unbind('reaction:add', handleAdd);
+      channel.unbind('reaction:remove', handleRemove);
     };
   }, [channelName, messageId, currentUserId]);
 

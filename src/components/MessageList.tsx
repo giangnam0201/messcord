@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useRef, useEffect } from 'react';
 import { format } from 'date-fns';
 import { useMessageContextMenu } from '@/hooks/useMessageContextMenu';
 import { MessageReactions } from '@/components/MessageReactions';
@@ -261,23 +261,29 @@ function ReplyPreview({ reply }: { reply: { content: string; author: { username:
 export function MessageList({
   messages,
   currentUserId,
-  pusherChannelName
+  pusherChannelName,
+  onReply,
+  onEdit,
+  onDelete
 }: {
   messages: ChatMessage[];
   currentUserId?: string;
   pusherChannelName?: string;
+  onReply?: (message: ChatMessage) => void;
+  onEdit?: (message: ChatMessage) => void;
+  onDelete?: (messageId: string) => void;
 }) {
+  const bottomRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    bottomRef.current?.scrollIntoView({ behavior: 'smooth' });
+  }, [messages.length]);
+
   const { showMessageMenu } = useMessageContextMenu({
     currentUserId: currentUserId || '',
-    onReply: (msg) => {
-      // TODO: wire up reply in ChatPanelClient
-    },
-    onDelete: async (msgId) => {
-      // TODO: wire up delete API
-    },
-    onPin: async (msgId) => {
-      // TODO: wire up pin API
-    }
+    onReply,
+    onEdit,
+    onDelete
   });
 
   if (messages.length === 0) {
@@ -368,6 +374,7 @@ export function MessageList({
           </li>
         );
       })}
+      <div ref={bottomRef} />
     </ul>
   );
 }

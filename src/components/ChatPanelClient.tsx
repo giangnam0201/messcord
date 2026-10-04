@@ -1,5 +1,6 @@
 'use client';
 
+import { useState } from 'react';
 import { ChatHeader } from '@/components/ChatHeader';
 import { MessageInput } from '@/components/MessageInput';
 import { MessageList, type ChatMessage } from '@/components/MessageList';
@@ -38,6 +39,9 @@ export function ChatPanelClient(props: ChatPanelClientProps) {
     ? `private-channel-${targetId}`
     : `private-conversation-${targetId}`;
 
+  const [replyingTo, setReplyingTo] = useState<ChatMessage | null>(null);
+  const [editingMessage, setEditingMessage] = useState<ChatMessage | null>(null);
+
   const { messages, sendMessage } = useChannelMessages({
     targetType,
     targetId,
@@ -54,15 +58,46 @@ export function ChatPanelClient(props: ChatPanelClientProps) {
   function handleSend(content: string) {
     stopTyping();
     sendMessage(content);
+    setReplyingTo(null);
+  }
+
+  async function handleDeleteMessage(messageId: string) {
+    if (props.kind === 'channel') {
+      await fetch(`/api/channels/${props.channelId}/messages/${messageId}`, {
+        method: 'DELETE'
+      }).catch(() => {});
+    }
+  }
+
+  async function handleEditMessage(message: ChatMessage) {
+    const newContent = prompt('Edit message:', message.content);
+    if (!newContent || newContent === message.content) return;
+
+    if (props.kind === 'channel') {
+      await fetch(`/api/channels/${props.channelId}/messages/${message.id}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ content: newContent })
+      }).catch(() => {});
+    }
   }
 
   if (props.kind === 'channel') {
     return (
       <section className="flex h-full min-w-0 flex-1 flex-col bg-discord-dark">
         <ChatHeader kind="channel" name={props.channelName} />
-        <MessageList messages={messages} currentUserId={props.currentUser.id} pusherChannelName={pusherChannelName} />
+        <MessageList
+          messages={messages}
+          currentUserId={props.currentUser.id}
+          pusherChannelName={pusherChannelName}
+          onReply={(msg) => setReplyingTo(msg)}
+          onEdit={(msg) => handleEditMessage(msg)}
+          onDelete={(id) => handleDeleteMessage(id)}
+        />
         <TypingIndicator channelName={pusherChannelName} currentUserId={props.currentUser.id} />
         <MessageInput
+          replyingTo={replyingTo}
+          onCancelReply={() => setReplyingTo(null)}
           onSend={handleSend}
           onTyping={emitTyping}
           placeholder={`Message #${props.channelName}`}
@@ -74,9 +109,18 @@ export function ChatPanelClient(props: ChatPanelClientProps) {
   return (
     <section className="flex h-full min-w-0 flex-1 flex-col bg-discord-dark">
       <ChatHeader kind="dm" name={props.otherName} />
-      <MessageList messages={messages} currentUserId={props.currentUser.id} pusherChannelName={pusherChannelName} />
+      <MessageList
+        messages={messages}
+        currentUserId={props.currentUser.id}
+        pusherChannelName={pusherChannelName}
+        onReply={(msg) => setReplyingTo(msg)}
+        onEdit={(msg) => handleEditMessage(msg)}
+        onDelete={(id) => handleDeleteMessage(id)}
+      />
       <TypingIndicator channelName={pusherChannelName} currentUserId={props.currentUser.id} />
       <MessageInput
+        replyingTo={replyingTo}
+        onCancelReply={() => setReplyingTo(null)}
         onSend={handleSend}
         onTyping={emitTyping}
         placeholder={`Message @${props.otherName}`}
